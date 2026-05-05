@@ -1,0 +1,18 @@
+stages:
+  - validate
+
+node:version:
+  stage: validate
+  image: node:20
+  tags:
+    - docker
+  script:
+    - node -v
+
+python:version:
+  stage: validate
+  image: python:3.10
+  tags:
+    - docker
+  script:
+    - python --version

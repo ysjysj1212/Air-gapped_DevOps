@@ -33,13 +33,19 @@ jobs:
             main|master)
               exit 0
               ;;
-            AI/*)
+            DevOps/*|AI/*)
               ;;
             *)
-              echo "Skipping branch without an allowed work prefix: $HEAD_BRANCH"
+              echo "Skipping branch without an allowed owner prefix: $HEAD_BRANCH"
               exit 0
               ;;
           esac
+
+          work_item="${HEAD_BRANCH#*/}"
+          if [ -z "$work_item" ] || printf '%s\n' "$work_item" | grep -Eq '[[:space:]/]'; then
+            echo "Skipping branch with invalid work item segment: $HEAD_BRANCH"
+            exit 0
+          fi
 
           existing_pr="$(gh pr list \
             --repo "$REPOSITORY" \

@@ -1,0 +1,8 @@
+image: python:3.10
+
+stages:
+  - test
+
+test:
+  script:
+    - echo "Python Test Running"
