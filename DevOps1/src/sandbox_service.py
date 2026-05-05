@@ -12,11 +12,16 @@ def _get_client():
         return _client
     try:
         import docker
+        import docker.errors
         _client = docker.DockerClient()
         _client.ping()
         _available = True
         logger.info("Docker is available")
-    except Exception as exc:  # pylint: disable=broad-except
+    except ImportError:
+        logger.warning("docker package is not installed")
+        _client = None
+        _available = False
+    except Exception as exc:  # docker.errors.DockerException and subclasses
         logger.warning("Docker is not available: %s", exc)
         _client = None
         _available = False
@@ -43,6 +48,7 @@ def run_sandbox(image: str, command: str, timeout: int = 30) -> dict:
         }
 
     try:
+        import docker.errors
         result = client.containers.run(
             image,
             command=command,
@@ -53,6 +59,12 @@ def run_sandbox(image: str, command: str, timeout: int = 30) -> dict:
         )
         output = result.decode("utf-8") if isinstance(result, bytes) else str(result)
         return {"exit_code": 0, "output": output, "error": ""}
-    except Exception as exc:  # pylint: disable=broad-except
-        logger.error("Sandbox run failed: %s", exc)
+    except docker.errors.ContainerError as exc:
+        logger.error("Container exited with non-zero status: %s", exc)
+        return {"exit_code": exc.exit_status, "output": "", "error": str(exc)}
+    except docker.errors.ImageNotFound as exc:
+        logger.error("Docker image not found: %s", exc)
+        return {"exit_code": 1, "output": "", "error": str(exc)}
+    except docker.errors.APIError as exc:
+        logger.error("Docker API error: %s", exc)
         return {"exit_code": 1, "output": "", "error": str(exc)}

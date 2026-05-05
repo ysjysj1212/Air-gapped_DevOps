@@ -3,6 +3,8 @@ import os
 
 from flask import Flask, jsonify, request
 
+_DEBUG = os.getenv("FLASK_ENV", "production") == "development"
+
 from src.llm_service import ask_ollama
 from src.sandbox_service import is_available as docker_available
 from src.template_generator import generate_github_actions
@@ -78,14 +80,14 @@ def generate_ci():
 
 
 @app.errorhandler(404)
-def not_found(error):  # pylint: disable=unused-argument
+def not_found(exc):  # pylint: disable=unused-argument
     return jsonify({"status": "error", "message": "Not found"}), 404
 
 
 @app.errorhandler(405)
-def method_not_allowed(error):  # pylint: disable=unused-argument
+def method_not_allowed(exc):  # pylint: disable=unused-argument
     return jsonify({"status": "error", "message": "Method not allowed"}), 405
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    app.run(host="0.0.0.0", port=5000, debug=_DEBUG)
