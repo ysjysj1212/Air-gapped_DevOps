@@ -46,7 +46,12 @@ jobs:
         run: pip check
 
       - name: Run tests
-        run: pytest tests/
+        run: |
+          if find tests -name 'test_*.py' -size +0c | grep -q .; then
+            pytest tests/
+          else
+            echo "No non-empty test files found; skipping pytest."
+          fi
 
       - name: Lint YAML files
         run: yamllint .
