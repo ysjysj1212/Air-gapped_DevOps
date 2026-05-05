@@ -1,0 +1,20 @@
+stages:
+  - validate
+
+sandbox:node:
+  stage: validate
+  image: docker:27-cli
+  tags:
+    - docker-socket
+  script:
+    - docker run --rm node:20 node -v
+    - docker run --rm --network none node:20 node -v
+
+sandbox:python:
+  stage: validate
+  image: docker:27-cli
+  tags:
+    - docker-socket
+  script:
+    - docker run --rm python:3.10 python --version
+    - docker run --rm --network none python:3.10 python --version

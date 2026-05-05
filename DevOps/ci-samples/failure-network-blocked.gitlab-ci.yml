@@ -1,0 +1,16 @@
+stages:
+  - validate
+
+sandbox:network-blocked:
+  stage: validate
+  image: docker:27-cli
+  tags:
+    - docker-socket
+  allow_failure: true
+  script:
+    - >
+      docker run --rm --network none node:20
+      node -e "require('dns').lookup('example.com', (err) => {
+      if (err) { console.error(err.code); process.exit(1); }
+      console.log('unexpected network access');
+      })"

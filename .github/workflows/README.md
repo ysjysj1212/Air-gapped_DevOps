@@ -8,9 +8,9 @@ This repository uses three GitHub Actions workflows.
 
 It checks:
 
-- Python dependencies install successfully from `DevOps1/requirements.txt`
+- Python dependencies install successfully from `DevOps/requirements.txt`
 - Installed Python packages have no dependency conflicts through `pip check`
-- Tests pass with `pytest DevOps1/tests/`
+- Tests pass with `pytest DevOps/tests/`
 - YAML files pass `yamllint`
 - Branch names follow the owner/work-item convention
 - Commit subjects follow Conventional Commits
