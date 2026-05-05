@@ -12,7 +12,19 @@ It checks:
 - Installed Python packages have no dependency conflicts through `pip check`
 - Tests pass with `pytest DevOps1/tests/`
 - YAML files pass `yamllint`
+- Branch names follow the owner/work-item convention
 - Commit subjects follow Conventional Commits
+
+Branch name format:
+
+```text
+DevOps/<work-item>
+AI/<work-item>
+```
+
+Use `DevOps/` for infrastructure and execution-environment work.
+Use `AI/` for API, LLM, template generation, and validation logic work.
+The `<work-item>` segment must be non-empty and must not contain spaces or another slash.
 
 Commit message format:
 
@@ -54,7 +66,7 @@ It attempts to:
 
 - Auto-merge non-draft PRs targeting `main`, `master`, `devops`, or the repository default branch
 - Only merge branches from the same repository
-- Only merge branch names starting with an allowed work prefix, such as `feat/` or `ci/`
+- Only merge branch names matching `DevOps/<work-item>` or `AI/<work-item>`
 - Squash merge the PR
 - Delete the source branch after merge
 
@@ -72,6 +84,6 @@ Repository settings still need to allow this automation:
 It attempts to:
 
 - Ignore pushes to `main` and `master`
-- Only open PRs for allowed work branch prefixes
+- Only open PRs for `DevOps/<work-item>` or `AI/<work-item>` branches
 - Skip PR creation when an open PR already exists
 - Open the PR into the repository default branch

@@ -46,7 +46,7 @@ jobs:
               'devops',
               context.payload.repository.default_branch,
             ];
-            const allowedHeadPattern = /^(feat|fix|docs|test|chore|ci|build|refactor|perf)\//;
+            const allowedHeadPattern = /^(DevOps|AI)\/[^\s/]+$/;
 
             if (!allowedBaseBranches.includes(pullRequest.base.ref)) {
               core.setOutput('number', '');

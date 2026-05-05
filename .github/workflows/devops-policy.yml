@@ -56,6 +56,39 @@ jobs:
       - name: Lint YAML files
         run: yamllint .
 
+      - name: Validate branch convention
+        working-directory: .
+        env:
+          PUSH_BRANCH: ${{ github.ref_name }}
+          PR_BRANCH: ${{ github.head_ref }}
+        run: |
+          set -euo pipefail
+
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            branch="$PR_BRANCH"
+          else
+            branch="$PUSH_BRANCH"
+          fi
+
+          case "$branch" in
+            DevOps/*|AI/*)
+              ;;
+            *)
+              echo "Invalid branch name: $branch"
+              echo "Use one of:"
+              echo "- DevOps/<work-item>"
+              echo "- AI/<work-item>"
+              exit 1
+              ;;
+          esac
+
+          work_item="${branch#*/}"
+          if [ -z "$work_item" ] || printf '%s\n' "$work_item" | grep -Eq '[[:space:]/]'; then
+            echo "Invalid work item segment: $work_item"
+            echo "Use a single non-empty segment without spaces or extra slashes."
+            exit 1
+          fi
+
       - name: Validate commit convention
         working-directory: .
         env:
