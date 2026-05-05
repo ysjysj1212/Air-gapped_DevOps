@@ -1,0 +1,10 @@
+FROM python:3.10-slim
+
+WORKDIR /validator
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir PyYAML==6.0 yamllint==1.32.0
+
+COPY src/validators.py ./validators.py
+
+ENTRYPOINT ["python", "-c", "import validators; import sys; result = validators.validate_yaml(sys.stdin.read()); print(result); sys.exit(0 if result['valid'] else 1)"]

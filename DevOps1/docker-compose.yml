@@ -1,0 +1,33 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_APP=src/app.py
+      - FLASK_ENV=development
+      - OLLAMA_URL=http://ollama:11434
+    volumes:
+      - ../src:/app/src
+    depends_on:
+      - ollama
+    networks:
+      - devops-net
+
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - devops-net
+
+networks:
+  devops-net:
+    driver: bridge
+
+volumes:
+  ollama-data:
