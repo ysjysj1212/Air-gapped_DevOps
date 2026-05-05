@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  flask-app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    container_name: devops1-flask
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_APP=src/app.py
+      - FLASK_ENV=development
+      - OLLAMA_URL=http://ollama:11434
+    volumes:
+      - ./src:/app/src
+      - ./templates:/app/templates
+    depends_on:
+      - ollama
+    networks:
+      - devops-network
+    command: flask run --host=0.0.0.0
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: devops1-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - devops-network
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+
+volumes:
+  ollama-data:
+
+networks:
+  devops-network:
+    driver: bridge

@@ -1,0 +1,29 @@
+# 웹 프레임워크
+Flask==3.1.3
+
+# WSGI 유틸리티 라이브러리
+Werkzeug==3.1.8
+
+# YAML 파싱 및 생성
+PyYAML==6.0
+
+# 환경 변수 관리
+python-dotenv==1.0.0
+
+# Docker API 클라이언트
+docker==7.0.0
+
+# HTTP 요청 라이브러리
+requests==2.31.0
+
+# YAML 린트 도구
+yamllint==1.32.0
+
+# 템플릿 엔진
+Jinja2==3.1.6
+
+# 테스트 프레임워크
+pytest==7.4.0
+
+# 테스트 커버리지 측정
+pytest-cov==4.1.0
