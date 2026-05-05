@@ -2,6 +2,11 @@
 import pytest
 import json
 from src.app import app
+from src.template_generator import (
+    generate_github_actions,
+    generate_gitlab_ci,
+    generate_pipeline_yaml
+)
 
 @pytest.fixture
 def client():
@@ -43,3 +48,47 @@ def test_generate_ci_success(client):
     data = json.loads(response.data)
     assert data['status'] == 'success'
     assert 'pipeline' in data
+
+def test_generate_github_actions():
+    """GitHub Actions 템플릿 생성 테스트"""
+    result = generate_github_actions('python', 'test-project')
+    assert 'name: test-project CI/CD Pipeline' in result
+    assert 'runs-on: ubuntu-latest' in result
+    assert 'python-version' in result
+
+def test_generate_github_actions_with_options():
+    """GitHub Actions 커스텀 옵션 테스트"""
+    options = {
+        'runner_os': 'ubuntu-22.04',
+        'python_versions': ['3.9', '3.10', '3.11']
+    }
+    result = generate_github_actions('python', 'test-project', options)
+    assert 'ubuntu-22.04' in result
+    assert 'python-version' in result
+
+def test_generate_gitlab_ci():
+    """GitLab CI 템플릿 생성 테스트"""
+    result = generate_gitlab_ci('python', 'test-project')
+    assert 'stages:' in result
+    assert 'build:' in result
+    assert 'test:' in result
+    assert 'python:3.10' in result
+
+def test_generate_gitlab_ci_with_options():
+    """GitLab CI 커스텀 옵션 테스트"""
+    options = {'python_version': '3.11'}
+    result = generate_gitlab_ci('python', 'test-project', options)
+    assert 'python:3.11' in result
+
+def test_generate_pipeline_yaml_github_actions():
+    """generate_pipeline_yaml - GitHub Actions 포맷 테스트"""
+    result = generate_pipeline_yaml('github_actions', 'python', 'test-project')
+    assert 'name: test-project CI/CD Pipeline' in result
+    assert 'github.com/actions' not in result or 'checkout' in result
+
+def test_generate_pipeline_yaml_gitlab_ci():
+    """generate_pipeline_yaml - GitLab CI 포맷 테스트"""
+    result = generate_pipeline_yaml('gitlab_ci', 'python', 'test-project')
+    assert 'stages:' in result
+    assert 'build:' in result
+
