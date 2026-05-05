@@ -83,11 +83,24 @@ docker compose restart gitlab-runner
 docker compose logs -f gitlab-runner
 ```
 
-If GitLab advertises repository URLs as `http://localhost:8080/...`, set the runner-only clone URL to the Compose service name:
+If GitLab advertises repository URLs as `http://localhost:8080/...`, set the GitLab clone root to the internal Compose service name:
+
+```bash
+docker compose exec -T gitlab gitlab-rails runner \
+  'ApplicationSetting.current_without_cache.update!(custom_http_clone_url_root: "http://gitlab")'
+```
+
+Then set the runner clone URL and Docker network so CI job containers can resolve `gitlab`:
 
 ```bash
 docker compose exec gitlab-runner sh -c \
-  "awk '1; /url = \"http:\\/\\/gitlab\"/ { print \"  clone_url = \\\"http://gitlab\\\"\" }' /etc/gitlab-runner/config.toml > /tmp/config.toml && cp /tmp/config.toml /etc/gitlab-runner/config.toml"
+  "awk '
+    /\[runners.docker\]/ { print; in_docker=1; next }
+    in_docker && /^\s*network_mode = / { next }
+    in_docker && /^\s*tls_verify = / { print \"    network_mode = \\\"devops_default\\\"\"; print; in_docker=0; next }
+    /url = \"http:\\/\\/gitlab\"/ { print; print \"  clone_url = \\\"http://gitlab\\\"\"; next }
+    { print }
+  ' /etc/gitlab-runner/config.toml > /tmp/config.toml && cp /tmp/config.toml /etc/gitlab-runner/config.toml"
 docker compose restart gitlab-runner
 ```
 
@@ -117,10 +130,19 @@ docker compose run --rm gitlab-runner register \
   --executor "docker" \
   --description "poc-docker-runner-socket" \
   --docker-image "docker:27-cli" \
-  --docker-volumes "/var/run/docker.sock:/var/run/docker.sock" \
-  --tag-list "docker,sandbox,docker-socket" \
-  --run-untagged="false" \
-  --locked="false"
+  --docker-volumes "/var/run/docker.sock:/var/run/docker.sock"
+```
+
+After registration, apply the same `custom_http_clone_url_root`, `clone_url`, and `network_mode = "devops_default"` settings so Docker-in-CI jobs can clone the repository over the internal Compose network.
+
+The runner metadata (tags, locked state, and `run_untagged`) is managed by GitLab when you register with a runner authentication token. Configure those values when you create the runner in GitLab, not in the `gitlab-runner register` command.
+Use:
+
+```text
+Description: poc-docker-runner-socket
+Tags: docker-socket
+Run untagged jobs: disabled
+Locked: disabled
 ```
 
 ## 5. Run a Pipeline
@@ -148,6 +170,30 @@ That pipeline proves:
 - Docker is available inside the CI job.
 - `node:20` and `python:3.10` commands can run.
 - `--network none` jobs still execute local runtime commands.
+
+Store screenshots for the PoC under:
+
+```text
+DevOps/docs/screenshots/
+```
+
+Verified local PoC results:
+
+```text
+basic-success pipeline:
+- node:version -> v20.20.2
+- python:version -> Python 3.10.20
+
+docker-in-ci pipeline:
+- docker run --rm node:20 node -v -> v20.20.2
+- docker run --rm --network none node:20 node -v -> v20.20.2
+- docker run --rm python:3.10 python --version -> Python 3.10.20
+- docker run --rm --network none python:3.10 python --version -> Python 3.10.20
+
+failure-network-blocked pipeline:
+- docker run --rm --network none node:20 ... dns.lookup('example.com')
+- expected evidence observed: EAI_AGAIN
+```
 
 ## Troubleshooting
 
@@ -177,6 +223,22 @@ http://gitlab
 ```
 
 Do not use `localhost` inside the runner container because that points to the runner container itself.
+
+If repository cloning still points to `http://localhost:8080/...`, confirm:
+
+```bash
+docker compose exec -T gitlab gitlab-rails runner \
+  'puts ApplicationSetting.current_without_cache.custom_http_clone_url_root'
+docker compose exec -T gitlab-runner grep -nE 'clone_url|network_mode' /etc/gitlab-runner/config.toml
+```
+
+Expected values:
+
+```text
+custom_http_clone_url_root = http://gitlab
+clone_url = "http://gitlab"
+network_mode = "devops_default"
+```
 
 ### Docker command fails inside CI
 
