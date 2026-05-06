@@ -1,0 +1,148 @@
+stages:
+  - test
+  - lint
+  - build
+  - deploy
+
+variables:
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+  DOCKER_REGISTRY: "registry.gitlab.com"
+  IMAGE_NAME: "$DOCKER_REGISTRY/$CI_PROJECT_PATH"
+
+cache:
+  paths:
+    - .cache/pip
+    - venv/
+
+# Test job with Python 3.10
+test:3.10:
+  stage: test
+  image: python:3.10
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r DevOps1/requirements.txt
+  script:
+    - cd DevOps1 && pip check
+    - cd DevOps1 && yamllint .
+    - cd DevOps1 && pytest tests/ -v --tb=short
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    reports:
+      junit: DevOps1/test-results.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: DevOps1/coverage.xml
+    when: always
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+# Test job with Python 3.12
+test:3.12:
+  stage: test
+  image: python:3.12
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install -r DevOps1/requirements.txt
+  script:
+    - cd DevOps1 && pip check
+    - cd DevOps1 && yamllint .
+    - cd DevOps1 && pytest tests/ -v --tb=short
+  coverage: '/TOTAL.*\s+(\d+%)$/'
+  artifacts:
+    reports:
+      junit: DevOps1/test-results.xml
+      coverage_report:
+        coverage_format: cobertura
+        path: DevOps1/coverage.xml
+    when: always
+  retry:
+    max: 2
+    when:
+      - runner_system_failure
+      - stuck_or_timeout_failure
+
+# Linting job
+lint:
+  stage: lint
+  image: python:3.10
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install flake8 black isort pylint yamllint
+  script:
+    - echo "Running code quality checks..."
+    - black --check DevOps/src DevOps/tests || true
+    - isort --check-only DevOps/src DevOps/tests || true
+    - flake8 DevOps/src DevOps/tests --max-line-length=100 --exit-zero
+    - pylint DevOps/src --exit-zero || true
+    - yamllint . || true
+  allow_failure: true
+
+# Docker build job
+build:docker:
+  stage: build
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - docker build -t $IMAGE_NAME:$CI_COMMIT_SHA .
+    - docker build -t $IMAGE_NAME:latest .
+    - docker push $IMAGE_NAME:$CI_COMMIT_SHA
+    - docker push $IMAGE_NAME:latest
+  only:
+    - main
+    - /^DevOps\/.*$/
+    - /^AI\/.*$/
+
+# Security scanning (optional, requires GitLab Premium)
+security_scan:
+  stage: lint
+  image: python:3.10
+  before_script:
+    - python -m pip install --upgrade pip
+    - pip install bandit safety
+  script:
+    - echo "Running security checks..."
+    - bandit -r DevOps/src -f json -o bandit-report.json || true
+    - safety check --json || true
+  artifacts:
+    reports:
+      sast: bandit-report.json
+    when: always
+  allow_failure: true
+
+# Deploy to staging (only on main branch)
+deploy:staging:
+  stage: deploy
+  image: docker:latest
+  services:
+    - docker:dind
+  before_script:
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $CI_REGISTRY
+  script:
+    - echo "Deploying to staging environment..."
+    - docker pull $IMAGE_NAME:latest
+    - docker run -d -p 5000:5000 $IMAGE_NAME:latest
+  environment:
+    name: staging
+    url: http://staging.example.com
+  only:
+    - main
+
+# Pages deployment (documentation)
+pages:
+  stage: deploy
+  script:
+    - mkdir -p public
+    - cp -r docs/* public/ || true
+    - cp DOCKER.md public/DOCKER.html || true
+    - cp API.md public/API.html || true
+  artifacts:
+    paths:
+      - public
+  only:
+    - main
