@@ -103,14 +103,25 @@ jobs:
       - name: Build Docker image
         uses: docker/build-push-action@v4
         with:
-          context: .
-          file: ./Dockerfile
+          context: ./DevOps
+          file: ./DevOps/docker/Dockerfile
           push: false
+          load: true
           tags: air-gapped-devops:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Run Docker health check
         run: |
-          docker build -t ci-test:latest .
-          docker run --rm ci-test:latest python -m pytest DevOps/tests/ -v
+          docker run -d --rm --name ci-app -p 15000:5000 air-gapped-devops:${{ github.sha }}
+          trap 'docker stop ci-app >/dev/null 2>&1 || true' EXIT
+          sleep 10
+          curl --fail http://127.0.0.1:15000/health
+
+      - name: Build validator image
+        run: |
+          docker build -f DevOps/docker/Dockerfile.validator -t air-gapped-devops-validator:${{ github.sha }} DevOps
+
+      - name: Run validator image
+        run: |
+          docker run --rm air-gapped-devops-validator:${{ github.sha }}

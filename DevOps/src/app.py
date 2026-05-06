@@ -118,7 +118,7 @@ def generate_yaml():
             return jsonify({'status': 'error', 'message': 'Requirements are required'}), 400
         
         if use_llm and ollama_service.is_healthy():
-            yaml_content = template_generator.generate_with_llm(requirements)
+            yaml_content = template_generator.generate_with_llm(requirements, ci_type)
         else:
             yaml_content = template_generator.generate_yaml(requirements, ci_type)
         
@@ -145,7 +145,7 @@ def validate_yaml():
             return jsonify({'status': 'error', 'message': 'YAML content is required'}), 400
         
         result = validate_ci_yaml(yaml_content, ci_type)
-        return jsonify(result), 200 if result['is_valid'] else 400
+        return jsonify(result.to_dict()), 200 if result.is_valid else 400
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
