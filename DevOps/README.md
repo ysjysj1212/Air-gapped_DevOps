@@ -1,180 +1,123 @@
 # CI/CD 파이프라인 자동 생성 시스템
 
-## 프로젝트 개요
+자연어 요구사항을 받아 **GitHub Actions / GitLab CI YAML을 생성하고 검증하는 Flask 기반 서비스**입니다.
+로컬 PoC 기준으로는 **Docker Compose로 앱 + GitLab CE + GitLab Runner**를 함께 올려 시연할 수 있습니다.
 
-이 프로젝트는 사용자의 자연어 입력을 기반으로 **자동으로 CI/CD 파이프라인 YAML 파일을 생성**하는 시스템입니다.
+## 핵심 기능
 
-### 처리 흐름
+- 자연어 기반 YAML 생성
+- GitHub Actions / GitLab CI 검증
+- YAML diff 비교
+- 템플릿 커스터마이징
+- 다중 파이프라인 관리
+- 로컬 GitLab Runner 기반 PoC 검증
 
+## 권장 실행 방식
+
+### 1. 기본 데모 스택 (앱 + GitLab + Runner)
+
+```bash
+cd DevOps
+cp .env.example .env
+docker compose up -d app gitlab gitlab-runner
 ```
-사용자 입력 → LLM 처리 → YAML 생성 → 검증 → 결과 반환
+
+기본 앱 주소:
+
+```text
+http://localhost:${APP_PORT:-5000}
 ```
 
-### 주요 기술
+GitLab 주소:
 
-- **Flask**: 경량 웹 프레임워크로 RESTful API 제공
-- **Ollama LLM**: 로컬 기반 대형 언어 모델로 자연어 처리
-- **Docker Sandbox**: 안전한 격리 환경에서 CI/CD 파이프라인 실행 및 검증
+```text
+http://localhost:8080
+```
 
----
+기본 구성에서는 Ollama를 **호스트에서 실행**한다고 가정합니다:
 
-## 설치 및 실행 방법
+```text
+OLLAMA_URL=http://host.docker.internal:11434
+```
 
-### 사전 요구사항
-- Python 3.10+
-- Docker & Docker Compose
-- Ollama (LLM 런타임)
+### 2. Ollama까지 컨테이너로 띄우는 전체 스택
 
-### 설치 단계
+`.env`에서 Ollama URL을 아래처럼 바꾼 뒤:
 
-1. **저장소 클론**
-   ```bash
-   git clone <repository-url>
-   cd DevOps1
-   ```
+```text
+OLLAMA_URL=http://ollama:11434
+```
 
-2. **의존성 설치**
-   ```bash
-   pip install -r requirements.txt
-   ```
+다음 명령으로 전체 스택을 올립니다:
 
-3. **환경 변수 설정** (.env 파일 생성)
-   ```bash
-   FLASK_APP=src/app.py
-   OLLAMA_URL=http://localhost:11434
-   ```
+```bash
+docker compose --profile ollama up -d app ollama gitlab gitlab-runner
+```
 
-4. **Docker Compose로 서비스 실행**
-   ```bash
-   docker-compose up
-   ```
+## 빠른 확인 명령
 
-서비스가 정상 실행되면 http://localhost:5000 에서 API에 접근 가능합니다.
+```bash
+curl -s http://localhost:${APP_PORT:-5000}/health | jq .
+curl -I http://localhost:8080/users/sign_in
+docker compose ps
+```
 
----
+## 주요 API
 
-## API 엔드포인트
+### YAML 생성
 
-### 1. CI/CD 파이프라인 생성
-**POST** `/api/generate-ci`
+```http
+POST /api/generate-yaml
+```
 
-요청 예시:
+예시:
+
 ```json
 {
-  "project_description": "Node.js Express 프로젝트",
-  "language": "nodejs",
-  "requirements": ["테스트 자동화", "빌드 자동화"]
+  "requirements": "Python Flask API with pytest and GitLab CI",
+  "ci_type": "gitlab_ci",
+  "use_llm": false
 }
 ```
 
-응답 예시:
+### YAML 검증
+
+```http
+POST /api/validate-yaml
+```
+
+예시:
+
 ```json
 {
-  "status": "success",
-  "pipeline": "...",
-  "format": "github_actions"
+  "yaml": "stages:\n  - build\nbuild:\n  stage: build\n  script:\n    - echo hi\n",
+  "ci_type": "gitlab_ci"
 }
 ```
 
-### 2. 헬스 체크
-**GET** `/health`
+### 헬스 체크
 
-응답 예시:
-```json
-{
-  "status": "healthy",
-  "services": {
-    "flask": "running",
-    "docker": "connected",
-    "ollama": "available"
-  }
-}
+```http
+GET /health
 ```
-
----
 
 ## 프로젝트 구조
 
-```
-DevOps1/
-├── src/                           # 핵심 로직
-│   ├── app.py                     # Flask 애플리케이션 진입점
-│   ├── llm_service.py             # LLM 통합 및 자연어 처리
-│   ├── sandbox_service.py         # Docker 샌드박스 관리
-│   ├── template_generator.py      # YAML 템플릿 생성 로직
-│   └── validators.py              # CI/CD 파이프라인 검증
-│
-├── tests/                         # 테스트 코드
-│   ├── test_api.py                # API 엔드포인트 테스트
-│   └── __init__.py
-│
-├── docker/                        # Docker 이미지 설정
-│   ├── Dockerfile                 # 메인 애플리케이션 컨테이너
-│   └── Dockerfile.validator       # 검증 전용 컨테이너
-│
-├── templates/                     # CI/CD 템플릿
-│   ├── github_actions.yaml        # GitHub Actions 템플릿
-│   └── gitlab_ci.yaml             # GitLab CI/CD 템플릿
-│
-├── docs/                          # 문서
-│   ├── API_SPEC.md                # API 명세서
-│   └── ARCHITECTURE.md            # 시스템 아키텍처 설명서
-│
-├── requirements.txt               # Python 의존성
-├── docker-compose.yml             # Docker Compose 설정
-├── .gitignore                     # Git 제외 파일 목록
-└── README.md                      # 프로젝트 문서 (이 파일)
+```text
+DevOps/
+├── src/                 # Flask 앱과 생성/검증 로직
+├── tests/               # 테스트
+├── docker/              # 컨테이너 이미지 정의
+├── templates/           # 기본 YAML 템플릿
+├── ci-samples/          # GitLab PoC 샘플
+├── docs/                # 운영/검증 문서
+├── docker-compose.yml   # 데모 스택
+├── run.py               # 앱 엔트리포인트
+└── requirements.txt     # Python 의존성
 ```
 
----
+## 참고 문서
 
-## 빠른 시작 (Quick Start)
-
-자세한 설정 및 예제는 [QUICKSTART.md](./QUICKSTART.md)를 참고하세요.
-
-```bash
-# 1. 프로젝트 클론 및 설정
-git clone <repository-url>
-cd DevOps1
-pip install -r requirements.txt
-
-# 2. 서비스 시작
-docker-compose up -d
-
-# 3. 테스트 (선택사항)
-pytest tests/ --cov=src
-```
-
----
-
-## 참고 자료
-
-- [Flask 공식 문서](https://flask.palletsprojects.com/)
-- [Ollama 공식 사이트](https://ollama.ai/)
-- [Docker 공식 문서](https://docs.docker.com/)
-- [GitHub Actions 문서](https://docs.github.com/en/actions)
-- [GitLab CI/CD 문서](https://docs.gitlab.com/ee/ci/)
-
----
-
-## 라이선스
-
-이 프로젝트는 **MIT 라이선스** 하에서 배포됩니다. 자세한 사항은 LICENSE 파일을 참고하세요.
-
-```
-Copyright (c) 2026 DevOps1 Project
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-```
-
----
-
-**기여도 있으신 분들은 Pull Request를 보내주세요!** 📝
+- [QUICKSTART.md](./QUICKSTART.md)
+- [docs/SANDBOX.md](./docs/SANDBOX.md)
+- [docs/register-runner.md](./docs/register-runner.md)
