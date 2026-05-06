@@ -1,0 +1,462 @@
+openapi: 3.0.0
+info:
+  title: CI/CD Pipeline Generator API
+  description: REST API for generating and validating CI/CD YAML configurations
+  version: 1.0.0
+  contact:
+    name: DevOps Team
+    url: https://github.com/ysjysj1212/Air-gapped_DevOps
+  license:
+    name: MIT
+
+servers:
+  - url: http://localhost:5000
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+paths:
+  /:
+    get:
+      summary: Home endpoint
+      description: Returns service information and status
+      operationId: getHome
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "healthy"
+                  service:
+                    type: string
+                    example: "CI/CD Pipeline Generator"
+                  version:
+                    type: string
+                    example: "1.0.0"
+
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns detailed health information
+      operationId: getHealth
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy, degraded, unhealthy]
+                  service:
+                    type: string
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /api/generate-ci:
+    post:
+      summary: Generate CI configuration
+      description: Generate CI/CD configuration from a description
+      operationId: generateCI
+      tags:
+        - CI Generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - description
+              properties:
+                description:
+                  type: string
+                  description: CI/CD pipeline description
+                  example: "Build Python project, run tests, deploy to AWS"
+                language:
+                  type: string
+                  description: Programming language
+                  enum: [python, javascript, java, go, ruby]
+                  default: python
+      responses:
+        '200':
+          description: Configuration generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  config:
+                    type: object
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                  details:
+                    type: string
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "error"
+                  error:
+                    type: string
+
+  /api/generate-yaml:
+    post:
+      summary: Generate YAML pipeline configuration
+      description: Generate GitHub Actions or GitLab CI YAML from requirements
+      operationId: generateYAML
+      tags:
+        - YAML Generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - requirements
+              properties:
+                requirements:
+                  type: string
+                  description: Pipeline requirements
+                  example: "build, test, deploy"
+                language:
+                  type: string
+                  description: Programming language
+                  enum: [python, javascript, java, go, ruby]
+                  default: python
+                project_name:
+                  type: string
+                  description: Project name for the pipeline
+                  example: "my-project"
+                  default: "my-project"
+                ci_type:
+                  type: string
+                  description: CI/CD platform type
+                  enum: [github_actions, gitlab_ci]
+                  default: github_actions
+                use_llm:
+                  type: boolean
+                  description: Use LLM for enhanced generation
+                  default: false
+      responses:
+        '200':
+          description: YAML generated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  yaml:
+                    type: string
+                    description: Generated YAML content
+                  ci_type:
+                    type: string
+                  language:
+                    type: string
+                  project_name:
+                    type: string
+                  use_llm:
+                    type: boolean
+        '400':
+          description: Invalid request
+        '500':
+          description: Generation failed
+
+  /api/validate-yaml:
+    post:
+      summary: Validate YAML configuration
+      description: Validate GitHub Actions or GitLab CI YAML content
+      operationId: validateYAML
+      tags:
+        - YAML Validation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - yaml
+              properties:
+                yaml:
+                  type: string
+                  description: YAML content to validate
+                  example: "name: Test\non: push\njobs: {...}"
+                ci_type:
+                  type: string
+                  description: CI type (auto-detect if 'auto')
+                  enum: [auto, github_actions, gitlab_ci]
+                  default: auto
+      responses:
+        '200':
+          description: YAML is valid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+                  is_valid:
+                    type: boolean
+                    example: true
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                    example: []
+                  warnings:
+                    type: array
+                    items:
+                      type: string
+                  error_count:
+                    type: integer
+                  warning_count:
+                    type: integer
+                  suggestions:
+                    type: array
+                    items:
+                      type: string
+        '400':
+          description: YAML is invalid
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "invalid"
+                  is_valid:
+                    type: boolean
+                    example: false
+                  errors:
+                    type: array
+                    items:
+                      type: string
+                    example: ["Missing required section: 'name:'"]
+                  warnings:
+                    type: array
+                  error_count:
+                    type: integer
+                  warning_count:
+                    type: integer
+                  suggestions:
+                    type: array
+                    items:
+                      type: string
+
+  /api/ollama/health:
+    get:
+      summary: Check Ollama service health
+      description: Verify Ollama LLM service availability
+      operationId: checkOllamaHealth
+      tags:
+        - Ollama
+      responses:
+        '200':
+          description: Ollama health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    enum: [available, unavailable]
+                  message:
+                    type: string
+                  url:
+                    type: string
+
+  /api/ollama/models:
+    get:
+      summary: List available Ollama models
+      description: Get list of models available on Ollama service
+      operationId: getOllamaModels
+      tags:
+        - Ollama
+      responses:
+        '200':
+          description: List of available models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  models:
+                    type: array
+                    items:
+                      type: string
+                    example: ["llama2", "mistral", "neural-chat"]
+                  count:
+                    type: integer
+        '503':
+          description: Ollama service unavailable
+
+  /api/ollama/ask:
+    post:
+      summary: Ask Ollama LLM
+      description: Send a prompt to Ollama and get a response
+      operationId: askOllama
+      tags:
+        - Ollama
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - prompt
+              properties:
+                prompt:
+                  type: string
+                  description: The prompt to send to LLM
+                  example: "Generate a CI/CD pipeline for Python project"
+                model:
+                  type: string
+                  description: Model name to use
+                  default: "llama2"
+      responses:
+        '200':
+          description: LLM response received
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  response:
+                    type: string
+                  model:
+                    type: string
+                  processing_time:
+                    type: number
+                    description: Processing time in seconds
+        '503':
+          description: Ollama service unavailable
+
+components:
+  schemas:
+    ValidationResult:
+      type: object
+      properties:
+        is_valid:
+          type: boolean
+        errors:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        error_count:
+          type: integer
+        warning_count:
+          type: integer
+
+    PipelineConfig:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [github_actions, gitlab_ci]
+        name:
+          type: string
+        language:
+          type: string
+        requirements:
+          type: array
+          items:
+            type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: string
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              path:
+                type: string
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              status:
+                type: string
+                example: error
+              error:
+                type: string
+
+tags:
+  - name: Health
+    description: Service health and status endpoints
+  - name: CI Generation
+    description: CI/CD configuration generation
+  - name: YAML Generation
+    description: YAML pipeline generation
+  - name: YAML Validation
+    description: YAML pipeline validation
+  - name: Ollama
+    description: Ollama LLM integration endpoints
+
+externalDocs:
+  description: Find more information on GitHub
+  url: https://github.com/ysjysj1212/Air-gapped_DevOps
