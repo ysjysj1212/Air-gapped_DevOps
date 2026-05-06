@@ -106,6 +106,7 @@ jobs:
           context: ./DevOps
           file: ./DevOps/docker/Dockerfile
           push: false
+          load: true
           tags: air-gapped-devops:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
