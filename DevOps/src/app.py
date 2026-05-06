@@ -145,7 +145,7 @@ def validate_yaml():
             return jsonify({'status': 'error', 'message': 'YAML content is required'}), 400
         
         result = validate_ci_yaml(yaml_content, ci_type)
-        return jsonify(result), 200 if result['is_valid'] else 400
+        return jsonify(result.to_dict()), 200 if result.is_valid else 400
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
