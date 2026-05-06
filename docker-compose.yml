@@ -1,0 +1,51 @@
+version: '3.8'
+
+services:
+  # Flask CI/CD Pipeline Generator API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ci-pipeline-generator
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - FLASK_APP=src/app.py
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./DevOps/src:/app/src:ro
+      - ./DevOps/tests:/app/tests:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+    networks:
+      - ci-pipeline-network
+
+  # Optional: Ollama LLM service (if you want to use LLM features)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: ollama-service
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    restart: unless-stopped
+    networks:
+      - ci-pipeline-network
+    # Note: Models need to be pulled manually:
+    # docker exec ollama-service ollama pull llama2
+
+networks:
+  ci-pipeline-network:
+    driver: bridge
+
+volumes:
+  ollama_data:
+    driver: local
