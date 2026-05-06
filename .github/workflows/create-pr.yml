@@ -33,7 +33,7 @@ jobs:
             main|master)
               exit 0
               ;;
-            DevOps/*|AI/*)
+            DevOps/*|AI/*|feature/*)
               ;;
             *)
               echo "Skipping branch without an allowed owner prefix: $HEAD_BRANCH"

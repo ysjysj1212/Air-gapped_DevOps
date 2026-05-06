@@ -71,13 +71,14 @@ jobs:
           fi
 
           case "$branch" in
-            DevOps/*|AI/*)
+            DevOps/*|AI/*|feature/*)
               ;;
             *)
               echo "Invalid branch name: $branch"
               echo "Use one of:"
               echo "- DevOps/<work-item>"
               echo "- AI/<work-item>"
+echo "- feature/<work-item>"
               exit 1
               ;;
           esac
