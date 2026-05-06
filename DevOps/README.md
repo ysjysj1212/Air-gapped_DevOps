@@ -30,7 +30,7 @@
 1. **저장소 클론**
    ```bash
    git clone <repository-url>
-   cd DevOps1
+   cd DevOps
    ```
 
 2. **의존성 설치**
@@ -96,7 +96,7 @@
 ## 프로젝트 구조
 
 ```
-DevOps1/
+DevOps/
 ├── src/                           # 핵심 로직
 │   ├── app.py                     # Flask 애플리케이션 진입점
 │   ├── llm_service.py             # LLM 통합 및 자연어 처리
@@ -135,7 +135,7 @@ DevOps1/
 ```bash
 # 1. 프로젝트 클론 및 설정
 git clone <repository-url>
-cd DevOps1
+cd DevOps
 pip install -r requirements.txt
 
 # 2. 서비스 시작
@@ -162,7 +162,7 @@ pytest tests/ --cov=src
 이 프로젝트는 **MIT 라이선스** 하에서 배포됩니다. 자세한 사항은 LICENSE 파일을 참고하세요.
 
 ```
-Copyright (c) 2026 DevOps1 Project
+Copyright (c) 2026 Air-gapped DevOps Project
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
