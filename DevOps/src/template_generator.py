@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
-from .llm_service import OllamaService
+from llm_service import OllamaService
 
 
 @dataclass(frozen=True)

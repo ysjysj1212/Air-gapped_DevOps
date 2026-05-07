@@ -6,13 +6,19 @@ Includes YAML generation, validation, and advanced features
 from flask import Flask, request, jsonify
 from datetime import datetime
 import uuid
+import sys
+import os
 
-from .llm_service import OllamaService
-from .template_generator import TemplateGenerator
-from .validators import validate_ci_yaml
-from .yaml_diff import YAMLDiffer
-from .template_customizer import TemplateCustomizer, CustomJob
-from .pipeline_manager import PipelineManager, Pipeline, PipelineJob, PipelineStatus
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+from llm_service import OllamaService
+from template_generator import TemplateGenerator
+from validators import validate_ci_yaml
+from yaml_diff import YAMLDiffer
+from template_customizer import TemplateCustomizer, CustomJob
+from pipeline_manager import PipelineManager, Pipeline, PipelineJob, PipelineStatus
+from sandbox_service import SandboxService
 
 app = Flask(__name__)
 
@@ -22,6 +28,7 @@ template_generator = TemplateGenerator()
 yaml_differ = YAMLDiffer()
 template_customizer = TemplateCustomizer()
 pipeline_manager = PipelineManager()
+sandbox_service = SandboxService()
 
 
 # ===== Basic Endpoints =====
@@ -107,25 +114,50 @@ def ollama_ask():
 
 @app.route('/api/generate-yaml', methods=['POST'])
 def generate_yaml():
-    """Generate YAML from requirements"""
+    """Generate GitLab CI YAML from natural language requirements
+    
+    Request JSON:
+    {
+        "requirements": "Node.js project CI",
+        "use_llm": true,  # Use Gemma for generation
+        "ci_type": "gitlab_ci"  # Default to gitlab_ci
+    }
+    
+    Response:
+    {
+        "status": "ok",
+        "yaml": "...YAML content...",
+        "ci_type": "gitlab_ci",
+        "generated_by": "gemma" or "template"
+    }
+    """
     try:
         data = request.get_json()
         requirements = data.get('requirements', '')
-        ci_type = data.get('ci_type', 'auto')  # github_actions, gitlab_ci, auto
-        use_llm = data.get('use_llm', False)
+        use_llm = data.get('use_llm', True)  # Default to LLM for MVP
+        ci_type = data.get('ci_type', 'gitlab_ci')  # GitLab CI only for MVP
         
         if not requirements:
             return jsonify({'status': 'error', 'message': 'Requirements are required'}), 400
         
+        # MVP: Use Gemma for YAML generation
         if use_llm and ollama_service.is_healthy():
-            yaml_content = template_generator.generate_with_llm(requirements, ci_type)
+            yaml_content = ollama_service.generate_gitlab_ci_yaml(requirements, model='gemma')
+            generated_by = 'gemma'
+            if not yaml_content:
+                # Fallback to template if Gemma fails
+                yaml_content = template_generator.generate_yaml(requirements, ci_type)
+                generated_by = 'template_fallback'
         else:
+            # Fallback: template-based generation
             yaml_content = template_generator.generate_yaml(requirements, ci_type)
+            generated_by = 'template'
         
         return jsonify({
             'status': 'ok',
             'yaml': yaml_content,
-            'ci_type': ci_type
+            'ci_type': 'gitlab_ci',
+            'generated_by': generated_by
         }), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -146,6 +178,106 @@ def validate_yaml():
         
         result = validate_ci_yaml(yaml_content, ci_type)
         return jsonify(result.to_dict()), 200 if result.is_valid else 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/generate-and-validate', methods=['POST'])
+def generate_and_validate():
+    """Complete AI→DevOps pipeline: Generate YAML → Validate → Sandbox check
+    
+    Request JSON:
+    {
+        "requirements": "Node.js project CI",
+        "use_llm": true,
+        "validate": true,
+        "sandbox": true  # Optional: run in Docker sandbox
+    }
+    
+    Response:
+    {
+        "status": "ok" | "error",
+        "generation": {
+            "yaml": "...generated YAML...",
+            "generated_by": "gemma" | "template"
+        },
+        "validation": {
+            "is_valid": true | false,
+            "errors": [...],
+            "warnings": [...]
+        },
+        "sandbox": {
+            "executed": true | false,
+            "success": true | false,
+            "output": "...",
+            "error": "..."
+        }
+    }
+    """
+    try:
+        data = request.get_json()
+        requirements = data.get('requirements', '')
+        use_llm = data.get('use_llm', True)
+        validate = data.get('validate', True)
+        run_sandbox = data.get('sandbox', True)
+        
+        if not requirements:
+            return jsonify({'status': 'error', 'message': 'Requirements are required'}), 400
+        
+        # Step 1: Generate YAML
+        if use_llm and ollama_service.is_healthy():
+            yaml_content = ollama_service.generate_gitlab_ci_yaml(requirements, model='gemma')
+            generated_by = 'gemma'
+            if not yaml_content:
+                yaml_content = template_generator.generate_yaml(requirements, 'gitlab_ci')
+                generated_by = 'template_fallback'
+        else:
+            yaml_content = template_generator.generate_yaml(requirements, 'gitlab_ci')
+            generated_by = 'template'
+        
+        response_data = {
+            'status': 'ok',
+            'generation': {
+                'yaml': yaml_content,
+                'generated_by': generated_by
+            },
+            'validation': None,
+            'sandbox': None
+        }
+        
+        # Step 2: Validate YAML (if requested)
+        if validate:
+            validation_result = validate_ci_yaml(yaml_content, 'gitlab_ci')
+            response_data['validation'] = validation_result.to_dict()
+            
+            # If validation failed, still return but indicate failure
+            if not validation_result.is_valid:
+                response_data['status'] = 'validation_failed'
+        
+        # Step 3: Run Sandbox (if requested and validation passed)
+        if run_sandbox and sandbox_service.is_available():
+            if not validate or (validate and validation_result.is_valid):
+                sandbox_result = sandbox_service.validate_yaml_in_sandbox(yaml_content)
+                response_data['sandbox'] = {
+                    'executed': True,
+                    'success': sandbox_result.success,
+                    'return_code': sandbox_result.return_code,
+                    'output': sandbox_result.stdout[:500],
+                    'error': sandbox_result.error_message
+                }
+                
+                # Update overall status
+                if response_data['status'] == 'ok' and not sandbox_result.success:
+                    response_data['status'] = 'sandbox_failed'
+            else:
+                response_data['sandbox'] = {
+                    'executed': False,
+                    'reason': 'Validation failed, skipping sandbox'
+                }
+        
+        status_code = 200 if response_data['status'] == 'ok' else 400
+        return jsonify(response_data), status_code
+        
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
