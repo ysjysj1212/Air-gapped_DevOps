@@ -1,8 +1,0 @@
-image: node:18
-
-stages:
-  - test
-
-test:
-  script:
-    - echo "Node Test Running"
