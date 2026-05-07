@@ -5,11 +5,13 @@ Includes YAML generation, validation, and advanced features
 
 from flask import Flask, request, jsonify
 from datetime import datetime
+from typing import Tuple
 import uuid
 
 from .llm_service import OllamaService
 from .template_generator import TemplateGenerator
-from .validators import validate_ci_yaml
+from .sandbox_service import SandboxService, SandboxValidationResult
+from .validators import inspect_gitlab_safety, validate_ci_yaml
 from .yaml_diff import YAMLDiffer
 from .template_customizer import TemplateCustomizer, CustomJob
 from .pipeline_manager import PipelineManager, Pipeline, PipelineJob, PipelineStatus
@@ -22,6 +24,7 @@ template_generator = TemplateGenerator()
 yaml_differ = YAMLDiffer()
 template_customizer = TemplateCustomizer()
 pipeline_manager = PipelineManager()
+sandbox_service = SandboxService()
 
 
 # ===== Basic Endpoints =====
@@ -36,6 +39,7 @@ def home():
         'features': [
             'YAML Generation',
             'YAML Validation',
+            'GitLab Sandbox Verification',
             'YAML Diff & Comparison',
             'Template Customization',
             'Multi-Pipeline Management',
@@ -51,6 +55,24 @@ def health():
         'status': 'healthy',
         'timestamp': datetime.now().isoformat()
     }), 200
+
+
+def _skip_sandbox_result(reason: str) -> SandboxValidationResult:
+    return SandboxValidationResult(
+        available=True,
+        executed=False,
+        passed=False,
+        errors=[reason],
+    )
+
+
+def _build_gitlab_mvp_yaml(requirements: str, use_llm: bool) -> Tuple[str, str]:
+    if use_llm and ollama_service.is_healthy():
+        return template_generator.generate_gitlab_mvp(requirements, use_llm=True), 'llm'
+    source = 'fallback'
+    if use_llm:
+        source = 'fallback_without_ollama'
+    return template_generator.generate_gitlab_mvp(requirements, use_llm=False), source
 
 
 # ===== Ollama Integration Endpoints =====
@@ -146,6 +168,54 @@ def validate_yaml():
         
         result = validate_ci_yaml(yaml_content, ci_type)
         return jsonify(result.to_dict()), 200 if result.is_valid else 400
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+
+
+@app.route('/api/devops/gitlab/verify', methods=['POST'])
+def devops_gitlab_verify():
+    """Run the DevOps MVP flow for GitLab CI generation, validation, and sandbox checks."""
+    try:
+        data = request.get_json() or {}
+        requirements = (data.get('requirements') or '').strip()
+        yaml_content = (data.get('yaml') or '').strip()
+        use_llm = bool(data.get('use_llm', False))
+
+        if not requirements and not yaml_content:
+            return jsonify({'status': 'error', 'message': 'Requirements or YAML content is required'}), 400
+
+        generation_source = 'provided_yaml'
+        if not yaml_content:
+            yaml_content, generation_source = _build_gitlab_mvp_yaml(requirements, use_llm)
+
+        validation = validate_ci_yaml(yaml_content, 'gitlab_ci')
+        safety = inspect_gitlab_safety(yaml_content)
+
+        skip_reason = 'Sandbox validation was skipped because YAML validation or safety checks failed.'
+        if validation.is_valid and safety.is_safe and not safety.sandbox_compatible:
+            skip_reason = (
+                'Sandbox validation was skipped because one or more jobs use images outside '
+                'the DevOps MVP sandbox scope. Supported images: node:20, python:3.10.'
+            )
+
+        sandbox_result = _skip_sandbox_result(skip_reason)
+        if validation.is_valid and safety.is_safe and safety.sandbox_compatible:
+            sandbox_result = sandbox_service.validate_gitlab_yaml(yaml_content)
+
+        overall_status = 'passed' if validation.is_valid and safety.is_safe and sandbox_result.passed else 'failed'
+
+        return jsonify({
+            'status': 'ok',
+            'overall_status': overall_status,
+            'generation': {
+                'source': generation_source,
+                'llm_requested': use_llm,
+            },
+            'yaml': yaml_content,
+            'validation': validation.to_dict(),
+            'safety': safety.to_dict(),
+            'sandbox': sandbox_result.to_dict(),
+        }), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
