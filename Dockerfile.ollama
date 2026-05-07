@@ -1,0 +1,23 @@
+# Ollama with Gemma4 pre-installed for air-gapped environments
+FROM ollama/ollama:latest
+
+# Install curl for health checks
+RUN apt-get update && apt-get install -y --no-install-recommends curl && rm -rf /var/lib/apt/lists/*
+
+# Pre-download Gemma4 model (optional: can also use gemma2 for lighter weight)
+# This ensures the model is available in air-gapped environments
+# Note: This step may take several minutes on first build
+RUN ollama serve & \
+    sleep 10 && \
+    ollama pull gemma4 && \
+    pkill ollama || true
+
+# Set environment variables
+ENV OLLAMA_HOST=0.0.0.0:11434
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD curl -f http://localhost:11434/api/tags || exit 1
+
+# Keep container running
+CMD ["ollama", "serve"]
