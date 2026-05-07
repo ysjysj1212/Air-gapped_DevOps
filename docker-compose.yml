@@ -1,51 +1,100 @@
+---
 version: '3.8'
 
 services:
   # Flask CI/CD Pipeline Generator API
-  api:
+  app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: ci-pipeline-generator
-    ports:
-      - "5000:5000"
-    environment:
-      - FLASK_ENV=production
-      - FLASK_APP=src/app.py
-      - PYTHONUNBUFFERED=1
-    volumes:
-      - ./DevOps/src:/app/src:ro
-      - ./DevOps/tests:/app/tests:ro
+    container_name: poc-app
     restart: unless-stopped
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 5s
+    ports:
+      - "${APP_PORT:-5000}:5000"
+    environment:
+      HOST: 0.0.0.0
+      PORT: 5000
+      FLASK_DEBUG: ${FLASK_DEBUG:-false}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
+      GITLAB_URL: ${GITLAB_URL:-http://gitlab:80}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - gitlab
     networks:
-      - ci-pipeline-network
+      - air-gapped-network
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - >-
+          import urllib.request;
+          urllib.request.urlopen("http://127.0.0.1:5000/health")
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
-  # Optional: Ollama LLM service (if you want to use LLM features)
+  # Optional: Ollama LLM service (--profile ollama)
   ollama:
     image: ollama/ollama:latest
-    container_name: ollama-service
+    container_name: poc-ollama
+    restart: unless-stopped
+    profiles:
+      - ollama
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
-    restart: unless-stopped
     networks:
-      - ci-pipeline-network
-    # Note: Models need to be pulled manually:
-    # docker exec ollama-service ollama pull llama2
+      - air-gapped-network
+
+  # GitLab CE (CI/CD System)
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    container_name: poc-gitlab
+    hostname: gitlab.local
+    restart: unless-stopped
+    shm_size: "256m"
+    ports:
+      - "8080:80"
+      - "2222:22"
+    environment:
+      GITLAB_OMNIBUS_CONFIG: |
+        external_url 'http://localhost:8080'
+        nginx['listen_port'] = 80
+        nginx['listen_https'] = false
+        gitlab_rails['gitlab_shell_ssh_port'] = 2222
+    volumes:
+      - gitlab_config:/etc/gitlab
+      - gitlab_logs:/var/log/gitlab
+      - gitlab_data:/var/opt/gitlab
+    networks:
+      - air-gapped-network
+
+  # GitLab Runner (CI/CD Executor)
+  gitlab-runner:
+    image: gitlab/gitlab-runner:alpine
+    container_name: poc-gitlab-runner
+    restart: unless-stopped
+    depends_on:
+      - gitlab
+    volumes:
+      - gitlab_runner_config:/etc/gitlab-runner
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - air-gapped-network
 
 networks:
-  ci-pipeline-network:
+  air-gapped-network:
     driver: bridge
 
 volumes:
   ollama_data:
-    driver: local
+  gitlab_config:
+  gitlab_logs:
+  gitlab_data:
+  gitlab_runner_config:
