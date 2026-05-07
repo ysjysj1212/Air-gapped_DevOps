@@ -7,6 +7,8 @@ from flask import Flask, request, jsonify
 from datetime import datetime
 from typing import Tuple
 import uuid
+import os
+from pathlib import Path
 
 from .llm_service import OllamaService
 from .template_generator import TemplateGenerator
@@ -25,6 +27,31 @@ yaml_differ = YAMLDiffer()
 template_customizer = TemplateCustomizer()
 pipeline_manager = PipelineManager()
 sandbox_service = SandboxService()
+
+# YAML 저장 디렉토리 설정
+GENERATED_YAMLS_DIR = Path(__file__).parent.parent.parent / "generated_yamls"
+GENERATED_YAMLS_DIR.mkdir(exist_ok=True)
+
+
+def save_generated_yaml(yaml_content: str, prefix: str = "auto") -> str:
+    """
+    생성된 YAML을 generated_yamls 디렉토리에 자동 저장
+    
+    Args:
+        yaml_content: 저장할 YAML 내용
+        prefix: 파일명 prefix (llm, auto, validate 등)
+    
+    Returns:
+        저장된 파일 경로
+    """
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    filename = f"{prefix}-{timestamp}.yml"
+    filepath = GENERATED_YAMLS_DIR / filename
+    
+    with open(filepath, 'w') as f:
+        f.write(yaml_content)
+    
+    return str(filepath)
 
 
 # ===== Basic Endpoints =====
@@ -141,13 +168,19 @@ def generate_yaml():
         
         if use_llm and ollama_service.is_healthy():
             yaml_content = template_generator.generate_with_llm(requirements, ci_type)
+            prefix = 'llm'
         else:
             yaml_content = template_generator.generate_yaml(requirements, ci_type)
+            prefix = 'auto'
+        
+        # 자동 저장
+        saved_file = save_generated_yaml(yaml_content, prefix=prefix)
         
         return jsonify({
             'status': 'ok',
             'yaml': yaml_content,
-            'ci_type': ci_type
+            'ci_type': ci_type,
+            'saved_file': saved_file  # ← 저장된 파일 경로
         }), 200
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
@@ -204,6 +237,10 @@ def devops_gitlab_verify():
 
         overall_status = 'passed' if validation.is_valid and safety.is_safe and sandbox_result.passed else 'failed'
 
+        # 자동 저장: YAML을 generated_yamls 디렉토리에 저장
+        prefix = 'llm' if (generation_source == 'llm' and use_llm) else 'auto'
+        saved_file = save_generated_yaml(yaml_content, prefix=prefix)
+
         return jsonify({
             'status': 'ok',
             'overall_status': overall_status,
@@ -212,6 +249,7 @@ def devops_gitlab_verify():
                 'llm_requested': use_llm,
             },
             'yaml': yaml_content,
+            'saved_file': saved_file,  # ← 저장된 파일 경로
             'validation': validation.to_dict(),
             'safety': safety.to_dict(),
             'sandbox': sandbox_result.to_dict(),
