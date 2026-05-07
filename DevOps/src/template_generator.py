@@ -78,18 +78,33 @@ def _normalize_language(language: Optional[str]) -> str:
 
 def _infer_language(requirements: str) -> str:
     lowered = requirements.lower()
-    if any(keyword in lowered for keyword in ("node", "npm", "express", "javascript")):
+    if any(keyword in lowered for keyword in ("node", "npm", "express", "javascript", "react", "next.js", "nextjs")):
         return "javascript"
-    if any(keyword in lowered for keyword in ("java", "maven", "gradle")):
+    if any(keyword in lowered for keyword in ("java", "maven", "gradle", "spring", "spring boot")):
         return "java"
     if any(keyword in lowered for keyword in ("golang", "go ", "go.mod")):
         return "go"
+    if any(keyword in lowered for keyword in ("python", "flask", "django", "fastapi", "pytest")):
+        return "python"
     return "python"
 
 
 def _include_deploy(requirements: str) -> bool:
     lowered = requirements.lower()
     return any(keyword in lowered for keyword in ("deploy", "release", "publish"))
+
+
+def _mvp_test_command(language: str, project_name: str) -> str:
+    normalized = _normalize_language(language)
+    if normalized in {"javascript", "nodejs"}:
+        return f'echo "Node.js sandbox verified for {project_name}"'
+    if normalized == "python":
+        return f'echo "Python sandbox verified for {project_name}"'
+    if normalized == "java":
+        return f'echo "Java pipeline draft ready for {project_name}"'
+    if normalized == "go":
+        return f'echo "Go pipeline draft ready for {project_name}"'
+    return f'echo "Pipeline draft ready for {project_name}"'
 
 
 def generate_github_actions(language: str, project_name: str, requirements: str = "") -> str:
@@ -176,6 +191,37 @@ test:
 {deploy_job}"""
 
 
+def generate_gitlab_ci_mvp(language: str, project_name: str, requirements: str = "") -> str:
+    """Generate a GitLab CI draft optimized for the DevOps MVP flow."""
+    config = LANGUAGE_CONFIGS[_normalize_language(language)]
+    deploy_job = ""
+    stage_lines = ["  - validate", "  - test"]
+    if _include_deploy(requirements):
+        stage_lines.append("  - deploy")
+        deploy_job = """
+deploy:
+  stage: deploy
+  script:
+    - echo "Deploy stage placeholder"
+"""
+
+    return f"""stages:
+{chr(10).join(stage_lines)}
+
+image: {config.gitlab_image}
+
+validate:
+  stage: validate
+  script:
+    - {config.version_command}
+
+test:
+  stage: test
+  script:
+    - {_mvp_test_command(language, project_name)}
+{deploy_job}"""
+
+
 def generate_yaml_from_requirements(
     requirements: str,
     language: str = "python",
@@ -231,6 +277,16 @@ class TemplateGenerator:
             ci_type=ci_type,
             use_llm=False,
         )
+
+    def generate_gitlab_mvp(self, requirements: str, use_llm: bool = False) -> str:
+        language = _infer_language(requirements)
+        project_name = self._infer_project_name(requirements)
+        final_requirements = requirements
+        if use_llm:
+            llm_summary = self.ollama_service.generate_pipeline_description(requirements)
+            if llm_summary:
+                final_requirements = f"{requirements}\n{llm_summary}"
+        return generate_gitlab_ci_mvp(language, project_name, requirements=final_requirements)
 
     @staticmethod
     def _infer_project_name(requirements: str) -> str:

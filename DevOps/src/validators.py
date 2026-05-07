@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
@@ -21,6 +22,20 @@ GITLAB_RESERVED_SECTIONS = {
     "include",
     "cache",
 }
+MVP_SANDBOX_IMAGES = {"node:20", "python:3.10"}
+DANGEROUS_GITLAB_PATTERNS = (
+    (re.compile(r"\bcurl\b"), "External HTTP downloads are not allowed in the DevOps MVP."),
+    (re.compile(r"\bwget\b"), "External downloads are not allowed in the DevOps MVP."),
+    (re.compile(r"\bapt(-get)?\b"), "Package manager installs are not allowed in the DevOps MVP."),
+    (re.compile(r"\b(apk|yum|dnf)\b"), "Package manager installs are not allowed in the DevOps MVP."),
+    (re.compile(r"\bpip\s+install\b"), "Dependency installation is out of scope for the DevOps MVP."),
+    (re.compile(r"\bnpm\s+(install|ci)\b"), "Dependency installation is out of scope for the DevOps MVP."),
+    (re.compile(r"\bgit\s+clone\b"), "Repository cloning is not allowed in the DevOps MVP jobs."),
+    (re.compile(r"\bssh\b"), "Remote shell access is not allowed in the DevOps MVP."),
+    (re.compile(r"\bscp\b"), "Remote copy is not allowed in the DevOps MVP."),
+    (re.compile(r"\bdocker\s+(build|push|compose|login)\b"), "Docker orchestration is not part of the DevOps MVP jobs."),
+    (re.compile(r"\b(kubectl|helm)\b"), "Cluster deployment commands are out of scope for the DevOps MVP."),
+)
 
 
 @dataclass
@@ -44,6 +59,26 @@ class ValidationResult:
 
     def __getitem__(self, key: str) -> Any:
         return self.to_dict()[key]
+
+
+@dataclass
+class GitLabSafetyResult:
+    """Structured safety and sandbox compatibility result for GitLab CI YAML."""
+
+    is_safe: bool
+    sandbox_compatible: bool
+    blocked_commands: List[Dict[str, str]] = field(default_factory=list)
+    warnings: List[str] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "is_safe": self.is_safe,
+            "sandbox_compatible": self.sandbox_compatible,
+            "blocked_commands": self.blocked_commands,
+            "warnings": self.warnings,
+            "blocked_count": len(self.blocked_commands),
+            "warning_count": len(self.warnings),
+        }
 
 
 def _load_yaml(yaml_content: str) -> Dict[str, Any]:
@@ -83,6 +118,25 @@ def _detect_ci_type(data: Dict[str, Any]) -> str:
     if "stages" in data:
         return "gitlab_ci"
     return "github_actions"
+
+
+def extract_gitlab_jobs(data: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """Return GitLab job mappings from a parsed YAML document."""
+    return {
+        key: value
+        for key, value in data.items()
+        if key not in GITLAB_RESERVED_SECTIONS and isinstance(value, dict)
+    }
+
+
+def extract_script_lines(job: Dict[str, Any]) -> List[str]:
+    """Normalize GitLab script fields into a list of shell commands."""
+    script = job.get("script")
+    if isinstance(script, str):
+        return [script]
+    if isinstance(script, list):
+        return [line for line in script if isinstance(line, str)]
+    return []
 
 
 def _validate_github_actions(data: Dict[str, Any]) -> ValidationResult:
@@ -160,6 +214,52 @@ def validate_ci_yaml(yaml_content: str, ci_type: str = "auto") -> ValidationResu
 
     result.detected_type = detected_type
     return result
+
+
+def inspect_gitlab_safety(yaml_content: str) -> GitLabSafetyResult:
+    """Inspect GitLab CI YAML for blocked MVP commands and sandbox compatibility."""
+    try:
+        data = _load_yaml(yaml_content)
+    except ValueError as exc:
+        return GitLabSafetyResult(
+            is_safe=False,
+            sandbox_compatible=False,
+            blocked_commands=[{"job": "pipeline", "command": "<invalid-yaml>", "reason": str(exc)}],
+            warnings=[],
+        )
+
+    pipeline_image = data.get("image") if isinstance(data.get("image"), str) else None
+    blocked_commands: List[Dict[str, str]] = []
+    warnings: List[str] = []
+    sandbox_compatible = True
+
+    for job_name, job in extract_gitlab_jobs(data).items():
+        image = job.get("image") if isinstance(job.get("image"), str) else pipeline_image
+        if image not in MVP_SANDBOX_IMAGES:
+            sandbox_compatible = False
+            warnings.append(
+                f"Job '{job_name}' uses sandbox-unsupported image '{image or 'none'}'. "
+                "Supported images: node:20, python:3.10"
+            )
+
+        for command in extract_script_lines(job):
+            for pattern, reason in DANGEROUS_GITLAB_PATTERNS:
+                if pattern.search(command):
+                    blocked_commands.append(
+                        {
+                            "job": job_name,
+                            "command": command,
+                            "reason": reason,
+                        }
+                    )
+                    break
+
+    return GitLabSafetyResult(
+        is_safe=not blocked_commands,
+        sandbox_compatible=sandbox_compatible,
+        blocked_commands=blocked_commands,
+        warnings=warnings,
+    )
 
 
 def suggest_fixes(yaml_content: str, result: ValidationResult) -> List[str]:

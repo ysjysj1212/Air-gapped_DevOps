@@ -9,10 +9,12 @@
 ```bash
 cd DevOps
 cp .env.example .env
+docker pull node:20 python:3.10
 docker compose up -d app gitlab gitlab-runner
 ```
 
 포트 5000이 이미 사용 중이면 `.env`에서 `APP_PORT`만 바꾸면 됩니다.
+DevOps MVP의 sandbox 검증은 호스트 Docker daemon을 사용하므로, `app` 서비스에 Docker socket이 마운트됩니다. 이 구성은 **PoC 전용**입니다.
 
 확인:
 
@@ -43,7 +45,38 @@ OLLAMA_URL=http://ollama:11434
 docker compose --profile ollama up -d app ollama gitlab gitlab-runner
 ```
 
-## 3. YAML 생성 예시
+## 3. DevOps MVP 흐름 실행
+
+가장 중요한 데모 경로입니다. 자연어 입력으로 GitLab CI 초안을 만들고, 구조 검증과 sandbox 검증을 한 번에 확인합니다.
+
+```bash
+curl -s http://localhost:${APP_PORT:-5000}/api/devops/gitlab/verify \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "requirements": "Node.js 프로젝트용 GitLab CI YAML을 만들어줘. Docker sandbox에서 검증 가능한 단순 단계로 구성해줘.",
+    "use_llm": false
+  }' | jq .
+```
+
+응답에서 확인할 필드:
+
+- `yaml`
+- `validation.is_valid`
+- `safety.is_safe`
+- `sandbox.passed`
+- `sandbox.jobs[].stdout`
+
+입력 문장은 꼭 한 가지 형식일 필요는 없습니다. 아래처럼 달라도 같은 검증 흐름으로 들어갑니다.
+
+```text
+Node.js 프로젝트용 GitLab CI YAML을 만들어줘.
+Python 앱인데 네트워크 없이 검증 가능한 초안이 필요해.
+테스트만 있는 간단한 GitLab CI를 만들어줘.
+```
+
+Spring Boot/Java처럼 `node:20`, `python:3.10` 밖의 이미지를 요구하는 입력은 YAML 초안과 구조/위험 명령 검사까지 수행하고, sandbox 실행은 MVP 범위 밖으로 표시합니다.
+
+## 4. YAML 생성 예시
 
 ```bash
 curl -s http://localhost:${APP_PORT:-5000}/api/generate-yaml \
@@ -55,7 +88,7 @@ curl -s http://localhost:${APP_PORT:-5000}/api/generate-yaml \
   }' | jq .
 ```
 
-## 4. YAML 검증 예시
+## 5. YAML 검증 예시
 
 ```bash
 curl -s http://localhost:${APP_PORT:-5000}/api/validate-yaml \
@@ -66,7 +99,7 @@ curl -s http://localhost:${APP_PORT:-5000}/api/validate-yaml \
   }' | jq .
 ```
 
-## 5. GitLab PoC 검증
+## 6. GitLab PoC 검증
 
 Runner 등록과 clone URL/network_mode 보정은 아래 문서를 따릅니다:
 
@@ -82,7 +115,7 @@ ci-samples/.gitlab-ci.yml
 ci-samples/failure-network-blocked.gitlab-ci.yml
 ```
 
-## 6. 종료
+## 7. 종료
 
 ```bash
 docker compose down
