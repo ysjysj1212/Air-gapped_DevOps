@@ -56,12 +56,22 @@ AutoCI
 AutoCI "Node.js 프로젝트, npm ci / npm test / npm run build가 필요한 GitLab CI"
 ```
 
-`AutoCI`만 입력하면 대화형 모드로 들어갑니다. `gemma4:e2b`는 큰 모델이라 첫 로딩이 수 분 걸릴 수 있습니다. `AutoCI`는 LLM으로 프로젝트 유형을 분석한 뒤 현재 디렉터리에 실행 가능한 GitLab CI 템플릿을 생성합니다.
+`AutoCI`만 입력하면 대화형 모드로 들어갑니다. `gemma4:e2b`는 큰 모델이라 첫 로딩이 수 분 걸릴 수 있습니다. `AutoCI`는 LLM으로 프로젝트 유형을 분석한 뒤 **현재 디렉터리**에 실행 가능한 GitLab CI 템플릿을 생성합니다.
 
 - Node.js 요청 → `node:20` 이미지와 `docker-socket` 태그 job 생성
 - Python 요청 → `python:3.10` 이미지와 `docker-socket` 태그 job 생성
 - 요청문에 버전을 적으면 해당 버전을 우선 반영
 - merge-ready 검증 단계가 함께 포함됩니다
+- 요청에 런타임이 명확하면 휴리스틱으로 바로 처리하고, 애매할 때만 Ollama를 사용합니다
+
+예를 들어 새 프로젝트에 바로 만들려면:
+
+```bash
+mkdir -p ~/Desktop/practice
+cd ~/Desktop/practice
+AutoCI "Node.js 프로젝트고 node 버전은 20이야. GitLab CI YAML 생성해줘."
+ls -la .gitlab-ci.yml
+```
 
 ## 3. DevOps MVP 흐름 실행
 
@@ -123,6 +133,13 @@ Runner 등록과 clone URL/network_mode 보정은 아래 문서를 따릅니다:
 
 ```text
 docs/register-runner.md
+```
+
+주소 구분:
+
+```text
+브라우저/로컬 push: http://localhost:8080/...
+Runner 내부 clone: http://gitlab/...
 ```
 
 이미 등록된 환경이라면 샘플 CI 파일을 프로젝트에 반영해 바로 시연할 수 있습니다:

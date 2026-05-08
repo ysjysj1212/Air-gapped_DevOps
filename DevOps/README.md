@@ -47,10 +47,35 @@ AutoCI "Node.js 프로젝트, npm ci / npm test / npm run build가 필요한 Git
 
 `AutoCI`만 입력하면 대화형 모드로 진입합니다. `gemma4:e2b` 첫 로딩은 수 분 걸릴 수 있습니다. `AutoCI`는 LLM으로 프로젝트 유형을 분석한 뒤 실행 가능한 GitLab CI 템플릿을 생성합니다.
 
+중요한 점은 **`AutoCI`를 실행한 현재 디렉터리**에 `.gitlab-ci.yml`이 생성된다는 것입니다. 즉 새 프로젝트 루트에서 실행해야 그 프로젝트에 바로 생성됩니다.
+
+```bash
+mkdir -p ~/Desktop/practice
+cd ~/Desktop/practice
+AutoCI "Node.js 프로젝트고 node 버전은 20이야. GitLab CI YAML 생성해줘."
+ls -la .gitlab-ci.yml
+```
+
 - Node.js 요청 → `node:20` 기반 job
 - Python 요청 → `python:3.10` 기반 job
 - 요청문에 버전을 적으면 해당 버전을 우선 반영
 - 모든 기본 job에는 `docker-socket` 태그와 merge-ready 검증 단계 포함
+- 요청에 런타임이 명확하면 휴리스틱으로 바로 처리하고, 애매할 때만 Ollama를 사용
+
+GitLab 연결 시 주소 구분:
+
+| 용도 | 주소 |
+| --- | --- |
+| 브라우저/로컬 push | `http://localhost:8080/...` |
+| Runner 내부 clone | `http://gitlab/...` |
+
+새 project runner를 등록했다면 아래 값도 함께 맞춰야 합니다.
+
+```text
+custom_http_clone_url_root = http://gitlab
+clone_url = "http://gitlab"
+network_mode = "air-gapped_devops_air-gapped-network"
+```
 
 ## 주요 API
 
