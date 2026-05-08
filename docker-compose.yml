@@ -1,6 +1,4 @@
 ---
-version: '3.8'
-
 services:
   # Flask CI/CD Pipeline Generator API
   app:
@@ -10,10 +8,10 @@ services:
     container_name: poc-app
     restart: unless-stopped
     ports:
-      - "${APP_PORT:-5000}:5000"
+      - "${APP_PORT:-8000}:8000"
     environment:
       HOST: 0.0.0.0
-      PORT: 5000
+      PORT: 8000
       FLASK_DEBUG: ${FLASK_DEBUG:-false}
       OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}
       GITLAB_URL: ${GITLAB_URL:-http://gitlab:80}
@@ -30,7 +28,7 @@ services:
         - -c
         - >-
           import urllib.request;
-          urllib.request.urlopen("http://127.0.0.1:5000/health")
+          urllib.request.urlopen("http://127.0.0.1:8000/health")
       interval: 30s
       timeout: 5s
       retries: 5
@@ -52,6 +50,9 @@ services:
       - ollama_data:/root/.ollama
     environment:
       - OLLAMA_HOST=0.0.0.0:11434
+      - OLLAMA_KEEP_ALIVE=30m
+      - OLLAMA_LOAD_TIMEOUT=10m
+      - OLLAMA_NUM_PARALLEL=1
     networks:
       - air-gapped-network
     healthcheck:
