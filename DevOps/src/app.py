@@ -29,8 +29,13 @@ pipeline_manager = PipelineManager()
 sandbox_service = SandboxService()
 
 # YAML 저장 디렉토리 설정
-GENERATED_YAMLS_DIR = Path(__file__).parent.parent.parent / "generated_yamls"
-GENERATED_YAMLS_DIR.mkdir(exist_ok=True)
+GENERATED_YAMLS_DIR = Path(
+    os.getenv(
+        "GENERATED_YAMLS_DIR",
+        str(Path(__file__).resolve().parents[2] / "generated_yamls"),
+    )
+)
+GENERATED_YAMLS_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def save_generated_yaml(yaml_content: str, prefix: str = "auto") -> str:
