@@ -41,10 +41,16 @@ http://localhost:8080
 ```bash
 docker-compose --profile ollama up -d
 ./scripts/install-autoci.sh
+AutoCI
 AutoCI "Node.js 프로젝트, npm ci / npm test / npm run build가 필요한 GitLab CI"
 ```
 
-`gemma4:e2b` 첫 로딩은 수 분 걸릴 수 있습니다. `AutoCI`는 LLM으로 런타임을 짧게 분석한 뒤 검증 가능한 GitLab CI 템플릿을 생성합니다.
+`AutoCI`만 입력하면 대화형 모드로 진입합니다. `gemma4:e2b` 첫 로딩은 수 분 걸릴 수 있습니다. `AutoCI`는 LLM으로 프로젝트 유형을 분석한 뒤 실행 가능한 GitLab CI 템플릿을 생성합니다.
+
+- Node.js 요청 → `node:20` 기반 job
+- Python 요청 → `python:3.10` 기반 job
+- 요청문에 버전을 적으면 해당 버전을 우선 반영
+- 모든 기본 job에는 `docker-socket` 태그와 merge-ready 검증 단계 포함
 
 ## 주요 API
 
