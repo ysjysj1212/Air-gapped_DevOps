@@ -52,10 +52,16 @@ curl http://localhost:11434/api/tags
 
 ```bash
 ./scripts/install-autoci.sh
+AutoCI
 AutoCI "Node.js 프로젝트, npm ci / npm test / npm run build가 필요한 GitLab CI"
 ```
 
-`gemma4:e2b`는 큰 모델이라 첫 로딩이 수 분 걸릴 수 있습니다. `AutoCI`는 LLM으로 런타임을 짧게 분석한 뒤 검증 가능한 GitLab CI 템플릿을 현재 디렉터리에 생성합니다.
+`AutoCI`만 입력하면 대화형 모드로 들어갑니다. `gemma4:e2b`는 큰 모델이라 첫 로딩이 수 분 걸릴 수 있습니다. `AutoCI`는 LLM으로 프로젝트 유형을 분석한 뒤 현재 디렉터리에 실행 가능한 GitLab CI 템플릿을 생성합니다.
+
+- Node.js 요청 → `node:20` 이미지와 `docker-socket` 태그 job 생성
+- Python 요청 → `python:3.10` 이미지와 `docker-socket` 태그 job 생성
+- 요청문에 버전을 적으면 해당 버전을 우선 반영
+- merge-ready 검증 단계가 함께 포함됩니다
 
 ## 3. DevOps MVP 흐름 실행
 
