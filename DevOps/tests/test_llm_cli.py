@@ -93,3 +93,31 @@ def test_build_gitlab_ci_respects_requested_python_version():
     )
 
     assert "image: python:3.11" in yaml_content
+
+
+def test_infer_language_with_llm_skips_llm_when_heuristic_matches():
+    module = load_llm_cli()
+
+    def fail_call(*args, **kwargs):
+        raise AssertionError("LLM should not be called for obvious runtime requests")
+
+    module.call_ollama = fail_call
+
+    language = module.infer_language_with_llm(
+        "Node.js 프로젝트고 node 버전은 20이야. GitLab CI YAML 생성해줘."
+    )
+
+    assert language == "node"
+
+
+def test_infer_language_with_llm_falls_back_when_ollama_fails():
+    module = load_llm_cli()
+
+    def fail_call(*args, **kwargs):
+        raise RuntimeError("Ollama request failed")
+
+    module.call_ollama = fail_call
+
+    language = module.infer_language_with_llm("CI YAML 생성해줘")
+
+    assert language == "node"
