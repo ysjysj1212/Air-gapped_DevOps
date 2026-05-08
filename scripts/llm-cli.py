@@ -18,7 +18,13 @@ OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gemma4:e2b")
 OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "600"))
 TARGET_PROJECT_DIR = Path.cwd()
 
-def call_ollama(prompt: str, *, num_predict: int = 64, retries: int = 2) -> str:
+def call_ollama(
+    prompt: str,
+    *,
+    num_predict: int = 64,
+    retries: int = 2,
+    fatal: bool = True,
+) -> str:
     """Ollama LLM에 프롬프트 전달"""
     payload = {
         "model": OLLAMA_MODEL,
@@ -52,16 +58,20 @@ def call_ollama(prompt: str, *, num_predict: int = 64, retries: int = 2) -> str:
             if attempt <= retries:
                 time.sleep(3)
                 continue
-            print("❌ Ollama 서버에 연결할 수 없습니다.")
-            print("   실행해주세요: docker-compose --profile ollama up -d ollama")
-            sys.exit(1)
+            if fatal:
+                print("❌ Ollama 서버에 연결할 수 없습니다.")
+                print("   실행해주세요: docker-compose --profile ollama up -d ollama")
+                sys.exit(1)
+            raise RuntimeError("Ollama server is unavailable") from exc
         except Exception as exc:
             last_error = exc
             if attempt <= retries:
                 time.sleep(3)
                 continue
-            print(f"❌ LLM 호출 실패: {last_error}")
-            sys.exit(1)
+            if fatal:
+                print(f"❌ LLM 호출 실패: {last_error}")
+                sys.exit(1)
+            raise RuntimeError(f"Ollama request failed: {last_error}") from exc
 
 def copilot(query: str):
     """일반 LLM 질의"""
@@ -125,6 +135,9 @@ def infer_requested_version(requirements: str, language: str) -> Optional[str]:
 def infer_language_with_llm(requirements: str) -> str:
     """LLM으로 요구사항을 짧게 분석해 CI 템플릿 대상을 결정"""
     inferred = infer_language_from_requirements(requirements)
+    if inferred:
+        return inferred
+
     candidate = inferred or "node"
 
     prompt = (
@@ -133,15 +146,15 @@ def infer_language_with_llm(requirements: str) -> str:
         f"Request: {requirements}\n"
         f"Best guess: {candidate}"
     )
-    response = call_ollama(prompt, num_predict=32).lower()
+    try:
+        response = call_ollama(prompt, num_predict=32, fatal=False).lower()
+    except RuntimeError:
+        return candidate
 
     match = re.search(r"\b(node|python)\b", response)
     if match:
         return match.group(1)
-    if inferred:
-        return inferred
-
-    raise RuntimeError(f"LLM returned an unexpected runtime classification: {response}")
+    return candidate
 
 
 def build_gitlab_ci(requirements: str, language: str) -> str:
