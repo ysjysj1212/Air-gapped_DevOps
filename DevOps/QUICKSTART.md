@@ -15,15 +15,15 @@ docker-compose up -d
 
 # 확인
 docker-compose ps
-curl -s http://localhost:5000/health | jq .
+curl -s http://localhost:8000/health | jq .
 curl -I http://localhost:8080/users/sign_in
 ```
 
-포트 5000이 이미 사용 중이면 `.env`에서 `APP_PORT`를 변경합니다.
+포트 8000이 이미 사용 중이면 `.env`에서 `APP_PORT`를 변경합니다.
 
 접속 주소:
 ```text
-Flask API:    http://localhost:5000
+Flask API:    http://localhost:8000
 GitLab:       http://localhost:8080
 ```
 
@@ -48,13 +48,22 @@ docker-compose ps | grep ollama
 curl http://localhost:11434/api/tags
 ```
 
+`AutoCI`를 새 터미널에서 바로 쓰려면 한 번만 아래를 실행합니다.
+
+```bash
+./scripts/install-autoci.sh
+AutoCI "Node.js 프로젝트, npm ci / npm test / npm run build가 필요한 GitLab CI"
+```
+
+`gemma4:e2b`는 큰 모델이라 첫 로딩이 수 분 걸릴 수 있습니다. `AutoCI`는 LLM으로 런타임을 짧게 분석한 뒤 검증 가능한 GitLab CI 템플릿을 현재 디렉터리에 생성합니다.
+
 ## 3. DevOps MVP 흐름 실행
 
 자연어 입력으로 GitLab CI 초안을 만들고, 구조 검증과 sandbox 검증을 확인합니다.
 
-### LLM 없이 (Fallback 템플릿)
+### LLM 없이 (템플릿 검증)
 ```bash
-curl -s http://localhost:5000/api/devops/gitlab/verify \
+curl -s http://localhost:8000/api/devops/gitlab/verify \
   -H 'Content-Type: application/json' \
   -d '{
     "requirements": "Node.js 프로젝트용 GitLab CI",
@@ -64,7 +73,7 @@ curl -s http://localhost:5000/api/devops/gitlab/verify \
 
 ### LLM 포함 (Gemma4)
 ```bash
-curl -s http://localhost:5000/api/devops/gitlab/verify \
+curl -s http://localhost:8000/api/devops/gitlab/verify \
   -H 'Content-Type: application/json' \
   -d '{
     "requirements": "Node.js 프로젝트용 GitLab CI YAML을 만들어줘. Docker sandbox에서 검증 가능한 단순 단계로 구성해줘.",
@@ -82,7 +91,7 @@ curl -s http://localhost:5000/api/devops/gitlab/verify \
 ## 4. YAML 생성 예시
 
 ```bash
-curl -s http://localhost:5000/api/generate-yaml \
+curl -s http://localhost:8000/api/generate-yaml \
   -H 'Content-Type: application/json' \
   -d '{
     "requirements": "Python Flask API with pytest and GitLab CI",
@@ -94,7 +103,7 @@ curl -s http://localhost:5000/api/generate-yaml \
 ## 5. YAML 검증 예시
 
 ```bash
-curl -s http://localhost:5000/api/validate-yaml \
+curl -s http://localhost:8000/api/validate-yaml \
   -H 'Content-Type: application/json' \
   -d '{
     "yaml": "stages:\n  - build\nbuild:\n  stage: build\n  script:\n    - echo hi\n",
@@ -127,10 +136,10 @@ Gemma4가 사전 빌드된 Docker 이미지를 사용:
 docker-compose --profile ollama build ollama
 
 # 이미지 저장 (USB/네트워크 전달용)
-docker save poc-ollama-with-gemma4:latest > ollama-gemma4.tar.gz
+docker save poc-ollama-with-gemma4:latest > ollama-gemma4-e2b.tar.gz
 
 # 폐쇄망 환경에서:
-docker load < ollama-gemma4.tar.gz
+docker load < ollama-gemma4-e2b.tar.gz
 docker-compose --profile ollama up -d
 ```
 
