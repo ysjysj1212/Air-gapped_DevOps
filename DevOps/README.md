@@ -21,16 +21,14 @@
 ### 1. 기본 데모 스택
 
 ```bash
-cd DevOps
-cp .env.example .env
-docker pull node:20 python:3.10
-docker compose up -d app gitlab gitlab-runner
+cd /path/to/Air-gapped_DevOps
+docker-compose up -d
 ```
 
 앱과 GitLab 접속:
 
 ```text
-http://localhost:5000
+http://localhost:8000
 http://localhost:8080
 ```
 
@@ -41,9 +39,12 @@ http://localhost:8080
 `.env`에서 Ollama URL을 컨테이너 서비스명으로 바꾼 뒤 실행합니다.
 
 ```bash
-OLLAMA_URL=http://ollama:11434
-docker compose --profile ollama up -d app ollama gitlab gitlab-runner
+docker-compose --profile ollama up -d
+./scripts/install-autoci.sh
+AutoCI "Node.js 프로젝트, npm ci / npm test / npm run build가 필요한 GitLab CI"
 ```
+
+`gemma4:e2b` 첫 로딩은 수 분 걸릴 수 있습니다. `AutoCI`는 LLM으로 런타임을 짧게 분석한 뒤 검증 가능한 GitLab CI 템플릿을 생성합니다.
 
 ## 주요 API
 
