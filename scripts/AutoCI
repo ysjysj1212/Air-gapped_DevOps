@@ -5,9 +5,4 @@ set -eu
 SCRIPT_REALPATH="$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$0")"
 REPO_ROOT="$(cd "$(dirname "$SCRIPT_REALPATH")/.." && pwd)"
 
-if [ "$#" -eq 0 ]; then
-  echo '사용법: AutoCI "프로젝트 요구사항"' >&2
-  exit 1
-fi
-
 exec python3 "$REPO_ROOT/scripts/llm-cli.py" AutoCI "$@"

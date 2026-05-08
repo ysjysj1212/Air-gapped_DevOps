@@ -12,6 +12,8 @@ help:
 	@echo ""
 	@echo "  make copilot \"질문\"     - LLM에 일반 질문"
 	@echo "  make AutoCI \"요구사항\"  - GitLab CI YAML 자동 생성"
+	@echo "  make AutoCI             - AutoCI 대화형 모드"
+	@echo "  AutoCI                  - 전역 대화형 모드"
 	@echo "  AutoCI \"요구사항\"       - 전역 명령처럼 바로 실행"
 	@echo ""
 	@echo "예제:"
@@ -55,10 +57,10 @@ copilot:
 
 AutoCI:
 	@if [ -z "$(filter-out $@,$(MAKECMDGOALS))" ]; then \
-		echo "사용법: make AutoCI \"프로젝트 요구사항\""; \
-		exit 1; \
+		python3 scripts/llm-cli.py AutoCI; \
+	else \
+		python3 scripts/llm-cli.py AutoCI $(filter-out $@,$(MAKECMDGOALS)); \
 	fi
-	@python3 scripts/llm-cli.py AutoCI $(filter-out $@,$(MAKECMDGOALS))
 
 # 이 줄은 make가 나머지 인자를 타겟으로 해석하지 않도록 함
 %:
